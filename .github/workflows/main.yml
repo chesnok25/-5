@@ -1,4 +1,4 @@
-name: Fixed Tests
+name: Python Tests - Alternative
 
 on: [push, pull_request]
 
@@ -7,52 +7,109 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
     
     - name: Setup Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
     
-    - name: Debug structure
+    - name: Create runner script
       run: |
-        echo "=== Project structure ==="
-        find . -name "*.py" -type f | sort
-        echo ""
-        echo "=== Contents of src/ ==="
-        ls -la src/
+        # Создаем скрипт для запуска тестов
+        cat > run_all_tests.py << 'EOF'
+import sys
+import os
+import subprocess
+
+def run_test(test_file):
+    """Запускает тестовый файл"""
+    print(f"\n{'='*60}")
+    print(f"Running: {test_file}")
+    print('='*60)
     
-    - name: Fix imports and run tests
+    # Добавляем папку с тестами в путь Python
+    test_dir = os.path.dirname(os.path.abspath(test_file))
+    sys.path.insert(0, test_dir)
+    
+    # Меняем рабочую директорию на папку с тестами
+    original_dir = os.getcwd()
+    os.chdir(test_dir)
+    
+    try:
+        # Запускаем тестовый файл как модуль
+        result = subprocess.run(
+            [sys.executable, "-m", "unittest", os.path.basename(test_file).replace('.py', '')],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        print(result.stdout)
+        if result.stderr:
+            print("STDERR:", result.stderr)
+        
+        return result.returncode == 0
+        
+    except subprocess.TimeoutExpired:
+        print(f"⏰ Timeout running {test_file}")
+        return False
+    except Exception as e:
+        print(f"❌ Error running {test_file}: {e}")
+        return False
+    finally:
+        os.chdir(original_dir)
+
+def main():
+    test_files = [
+        "src/src/test_calculator.py",
+        "src/src/test_utils.py"
+    ]
+    
+    success = True
+    for test_file in test_files:
+        if os.path.exists(test_file):
+            if not run_test(test_file):
+                success = False
+        else:
+            print(f"⚠️ Test file not found: {test_file}")
+    
+    if success:
+        print("\n✅ All tests passed!")
+        sys.exit(0)
+    else:
+        print("\n❌ Some tests failed")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
+EOF
+    
+    - name: Run tests with custom runner
       run: |
-        # Создаем временный файл для правильного импорта
-        cd src
+        python run_all_tests.py
+    
+    - name: Simple direct test (fallback)
+      if: failure()
+      run: |
+        # Прямой запуск если основной метод не сработал
+        cd src/src
         
-        echo "=== Checking test_calculator.py imports ==="
-        cat test_calculator.py | head -20
-        
+        # Проверяем содержимое файлов
+        echo "=== First 5 lines of each test file ==="
+        head -5 test_calculator.py
         echo ""
-        echo "=== Method 1: Run as script ==="
-        # Если в файле есть if __name__ == '__main__'
-        python test_calculator.py 2>&1 || echo "Script execution failed"
+        head -5 test_utils.py
         
+        # Пробуем запустить напрямую
         echo ""
-        echo "=== Method 2: Direct import test ==="
+        echo "=== Trying direct execution ==="
         python -c "
         import sys
         sys.path.insert(0, '.')
         try:
-            import test_calculator
-            print('✅ test_calculator imports OK')
-        except ImportError as e:
-            print(f'❌ Import failed: {e}')
-            print('Trying to see the issue...')
-            try:
-                import calculator
-                print('✅ calculator imports OK')
-            except Exception as e2:
-                print(f'❌ calculator import failed: {e2}')
+            exec(open('test_calculator.py').read())
+        except Exception as e:
+            print(f'Error: {e}')
         "
-        
-        echo ""
-        echo "=== Method 3: Run from current directory ==="
-        python -m unittest test_calculator -v 2>&1 || echo "unittest failed"
