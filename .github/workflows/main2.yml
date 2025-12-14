@@ -1,0 +1,49 @@
+name: Python Tests with Fix
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Fix imports and run tests
+      run: |
+        # Переходим в папку src
+        cd src
+        
+        # Удаляем кэш Python (на всякий случай)
+        rm -rf __pycache__ 2>/dev/null || true
+        
+        # Запускаем тесты
+        echo "=== Running Calculator Tests ==="
+        python -m unittest test_calculator -v
+        
+        echo "=== Running Utils Tests ==="
+        python -m unittest test_utils -v
+        
+        echo "=== All Tests Summary ==="
+        python -m unittest discover . -p "test_*.py"
+    
+    - name: Check test files exist
+      run: |
+        echo "Checking project structure..."
+        echo "Current directory: $(pwd)"
+        echo "Contents of src/:"
+        ls -la src/
+        
+        # Проверяем существование файлов
+        [ -f src/calculator.py ] && echo "✓ calculator.py exists" || echo "✗ calculator.py missing"
+        [ -f src/utils.py ] && echo "✓ utils.py exists" || echo "✗ utils.py missing"
+        [ -f src/test_calculator.py ] && echo "✓ test_calculator.py exists" || echo "✗ test_calculator.py missing"
+        [ -f src/test_utils.py ] && echo "✓ test_utils.py exists" || echo "✗ test_utils.py missing"
