@@ -24,8 +24,3 @@ def fibonacci(n: int) -> int:
 def reverse_string(s: str) -> str:
     """Реверс строки"""
     return s[::-1]
-
-def count_vowels(s: str) -> int:
-    """Подсчет гласных в строке"""
-    vowels = "aeiouаеёиоуыэюя"
-    return sum(1 for char in s.lower() if char in vowels)
