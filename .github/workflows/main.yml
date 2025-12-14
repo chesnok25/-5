@@ -1,115 +1,33 @@
-name: Python Tests - Alternative
+name: Python Unittest CI
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
 
 jobs:
   test:
-    runs-on: ubuntu-latest
-    
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10"]
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
-    
-    - name: Create runner script
-      run: |
-        # Создаем скрипт для запуска тестов
-        cat > run_all_tests.py << 'EOF'
-import sys
-import os
-import subprocess
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-def run_test(test_file):
-    """Запускает тестовый файл"""
-    print(f"\n{'='*60}")
-    print(f"Running: {test_file}")
-    print('='*60)
-    
-    # Добавляем папку с тестами в путь Python
-    test_dir = os.path.dirname(os.path.abspath(test_file))
-    sys.path.insert(0, test_dir)
-    
-    # Меняем рабочую директорию на папку с тестами
-    original_dir = os.getcwd()
-    os.chdir(test_dir)
-    
-    try:
-        # Запускаем тестовый файл как модуль
-        result = subprocess.run(
-            [sys.executable, "-m", "unittest", os.path.basename(test_file).replace('.py', '')],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        
-        print(result.stdout)
-        if result.stderr:
-            print("STDERR:", result.stderr)
-        
-        return result.returncode == 0
-        
-    except subprocess.TimeoutExpired:
-        print(f"⏰ Timeout running {test_file}")
-        return False
-    except Exception as e:
-        print(f"❌ Error running {test_file}: {e}")
-        return False
-    finally:
-        os.chdir(original_dir)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
 
-def main():
-    test_files = [
-        "src/src/test_calculator.py",
-        "src/src/test_utils.py"
-    ]
-    
-    success = True
-    for test_file in test_files:
-        if os.path.exists(test_file):
-            if not run_test(test_file):
-                success = False
-        else:
-            print(f"⚠️ Test file not found: {test_file}")
-    
-    if success:
-        print("\n✅ All tests passed!")
-        sys.exit(0)
-    else:
-        print("\n❌ Some tests failed")
-        sys.exit(1)
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
 
-if __name__ == "__main__":
-    main()
-EOF
-    
-    - name: Run tests with custom runner
-      run: |
-        python run_all_tests.py
-    
-    - name: Simple direct test (fallback)
-      if: failure()
-      run: |
-        # Прямой запуск если основной метод не сработал
-        cd src/src
-        
-        # Проверяем содержимое файлов
-        echo "=== First 5 lines of each test file ==="
-        head -5 test_calculator.py
-        echo ""
-        head -5 test_utils.py
-        
-        # Пробуем запустить напрямую
-        echo ""
-        echo "=== Trying direct execution ==="
-        python -c "
-        import sys
-        sys.path.insert(0, '.')
-        try:
-            exec(open('test_calculator.py').read())
-        except Exception as e:
-            print(f'Error: {e}')
-        "
+      - name: Run unit tests
+        run: |
+          cd src
+          python -m unittest discover -s src -p "test_*.py"
