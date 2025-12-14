@@ -1,0 +1,40 @@
+name: Python Unit Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Debug - Show directory structure
+      run: |
+        echo "Current directory: $(pwd)"
+        echo "Listing files:"
+        find . -name "*.py" -type f
+        echo ""
+        echo "Files in src/:"
+        ls -la src/
+    
+    - name: Run tests (correct way)
+      run: |
+        # Способ 1: Используйте путь к файлу
+        python src/test_calculator.py 2>/dev/null || echo "File cannot be run directly"
+        
+        # Способ 2: Используйте unittest с указанием пути
+        python -m unittest src.test_calculator -v
+        
+        # Способ 3: Или из папки src
+        cd src && python -m unittest test_calculator -v
+    
+    - name: Run all tests properly
+      run: |
+        # Самый надежный способ
+        PYTHONPATH=src:$PYTHONPATH python -m unittest discover -s src -p "test_*.py" -v
